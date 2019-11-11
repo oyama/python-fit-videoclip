@@ -1,0 +1,4 @@
+fitparse==1.1.0
+gizeh==0.1.11
+moviepy==1.0.0
+pandas==0.25.3
