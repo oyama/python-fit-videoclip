@@ -6,7 +6,7 @@ import pandas as pd
 import math
 import gizeh as gz
 import os
-
+import moviepy.video.fx.all as vfx
 
 class FitDataFrame:
     # TODO: extend DataFrame object
@@ -48,27 +48,6 @@ class FitDataFrame:
         return self._columns
 
 
-def add_alpha_channel(path):
-    from moviepy.tools import subprocess_call
-    from moviepy.config import get_setting
-
-    work = os.path.join(os.path.dirname(path), ".{}".format(os.path.basename(path)))
-    cmd = [
-        get_setting("FFMPEG_BINARY"),
-        "-y", "-i", path, "-loop", "1",
-        "-i", "base-clip.png",
-        "-filter_complex", "[1:v]alphaextract[alf];[0:v][alf]alphamerge",
-        "-c:v", "qtrle", "-an",
-        work]
-    try:
-        subprocess_call(cmd)
-    except IOError as e:
-        print(e)
-    finally:
-        if os.path.exists(work):
-            os.rename(work, path)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str, required=True, help="Input .FIT file")
@@ -81,7 +60,7 @@ def main():
 
     def make_frame(t):
         s = math.floor(t)
-        surface = gz.Surface(1280, 720, bg_color=(0, 0, 0, 0))
+        surface = gz.Surface(1280, 720)
         xy = [158, 54]
         for c in reversed(list(str(df.iloc[s]['power']))):
             power = gz.text(c, "Helvetica Neue", 83, fontweight="bold",
@@ -97,17 +76,18 @@ def main():
         return surface.get_npimage(transparent=True)
 
     duration = len(df.index)
-
-    bg_mask = mpy.ImageClip("base-clip.png", duration=duration, ismask=True)
+    bg_mask = mpy.ImageClip("base-clip.png", duration=duration, ismask=True, fromalpha=True)
     background = mpy.ImageClip("base-clip.png", duration=duration)
-    mask = mpy.VideoClip(lambda t: make_frame(t)[:, :, 3] / 255.0, duration=duration, ismask=True)
-    hr_power = mpy.VideoClip(lambda t: make_frame(t)[:, :, :3], duration=duration).set_mask(mask)
-    clip = mpy.CompositeVideoClip(clips=[background, hr_power],
-                                  size=(1280, 720)).set_mask(mask).set_duration(duration)
-    clip.write_videofile(args.output, codec="prores_ks", fps=1)
-    # TODO: alpha channelを保持して出力できないので、ffmpegでalpha channelを追加する
-    # https://github.com/Zulko/moviepy/pull/679
-    add_alpha_channel(args.output)
+    background.set_mask(bg_mask)
+
+    data_mask = mpy.VideoClip(lambda t: make_frame(t)[:, :, 3] / 255.0, duration=duration, ismask=True)
+    data = mpy.VideoClip(lambda t: make_frame(t)[:, :, :3], duration=duration)
+    data = data.set_mask(data_mask)
+
+    clip_mask = bg_mask.fx(vfx.mask_or, data_mask)
+    clip = mpy.CompositeVideoClip(clips=[background, data],
+                                  size=(1280, 720)).set_mask(clip_mask).set_duration(duration)
+    clip.write_videofile(args.output, codec="prores_ks", fps=1, withmask=True)
 
 
 if __name__ == "__main__":
