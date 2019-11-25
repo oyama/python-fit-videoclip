@@ -57,7 +57,9 @@ def main():
 
     fit = FitFile(args.input)
     df = FitDataFrame(fit).as_df()
-
+    df = df.fillna(0)
+    df['power'] = df['power'].astype(np.int)
+    df['heart_rate'] = df['heart_rate'].astype(np.int)
     def make_frame(t):
         s = math.floor(t)
         surface = gz.Surface(1280, 720)
