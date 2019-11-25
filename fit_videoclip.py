@@ -8,6 +8,7 @@ import gizeh as gz
 import os
 import moviepy.video.fx.all as vfx
 
+
 class FitDataFrame:
     # TODO: extend DataFrame object
     def __init__(self, fit):
@@ -52,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str, required=True, help="Input .FIT file")
     parser.add_argument("--output", type=str, default="out.mov", help="Output video clip file")
-
+    parser.add_argument("--duration", type=int, default=None, help="video clip duration")
     args = parser.parse_args()
 
     fit = FitFile(args.input)
@@ -60,6 +61,7 @@ def main():
     df = df.fillna(0)
     df['power'] = df['power'].astype(np.int)
     df['heart_rate'] = df['heart_rate'].astype(np.int)
+
     def make_frame(t):
         s = math.floor(t)
         surface = gz.Surface(1280, 720)
@@ -78,17 +80,19 @@ def main():
         return surface.get_npimage(transparent=True)
 
     duration = len(df.index)
-    bg_mask = mpy.ImageClip("base-clip.png", duration=duration, ismask=True, fromalpha=True)
-    background = mpy.ImageClip("base-clip.png", duration=duration)
-    background.set_mask(bg_mask)
+    if args.duration is not None:
+        duration = args.duration
 
-    data_mask = mpy.VideoClip(lambda t: make_frame(t)[:, :, 3] / 255.0, duration=duration, ismask=True)
+    background = mpy.ImageClip("base-clip.png", duration=duration)
+    bg_mask = mpy.ImageClip("base-clip.png", duration=duration, ismask=True, fromalpha=True)
+
     data = mpy.VideoClip(lambda t: make_frame(t)[:, :, :3], duration=duration)
+    data_mask = mpy.VideoClip(lambda t: make_frame(t)[:, :, 3] / 255.0, duration=duration, ismask=True)
     data = data.set_mask(data_mask)
 
-    clip_mask = bg_mask.fx(vfx.mask_or, data_mask)
-    clip = mpy.CompositeVideoClip(clips=[background, data],
-                                  size=(1280, 720)).set_mask(clip_mask).set_duration(duration)
+    clip = mpy.CompositeVideoClip(clips=[background, data], size=(1280, 720), use_bgclip=True)
+    clip = clip.set_mask(bg_mask)
+    clip = clip.set_duration(duration)
     clip.write_videofile(args.output, codec="prores_ks", fps=1, withmask=True)
 
 
