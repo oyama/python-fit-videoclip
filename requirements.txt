@@ -1,4 +1,5 @@
 fitparse==1.1.0
 gizeh==0.1.11
 -e git+https://github.com/oyama/moviepy.git@master#egg=moviepy
-pandas==0.25.3
+pandas==1.1.3
+sweat==0.15.0
